@@ -17,10 +17,10 @@ func TestNewOrchestrator(t *testing.T) {
 }
 
 func TestToolsMap(t *testing.T) {
-	if len(Tools) != 7 {
-		t.Errorf("expected 7 tools, got %d", len(Tools))
+	if len(Tools) != 8 {
+		t.Errorf("expected 8 tools, got %d", len(Tools))
 	}
-	expected := []string{"sca", "container", "iac", "license", "dast", "sast", "secrets"}
+	expected := []string{"sca", "container", "iac", "license", "dast", "sast", "secrets", "sbom"}
 	for _, key := range expected {
 		if _, ok := Tools[key]; !ok {
 			t.Errorf("expected tool %s to be defined", key)
