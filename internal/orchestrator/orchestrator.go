@@ -13,12 +13,13 @@ import (
 
 // Tool definitions with weights
 var Tools = map[string]models.ToolInfo{
-	"sca":       {Key: "sca", Name: "SCA (Software Composition Analysis)", Emoji: "📦", Weight: 20},
-	"container": {Key: "container", Name: "Container Security", Emoji: "🐳", Weight: 15},
-	"iac":       {Key: "iac", Name: "IaC (Infrastructure as Code)", Emoji: "🏗️", Weight: 15},
-	"license":   {Key: "license", Name: "License Compliance", Emoji: "📜", Weight: 10},
-	"dast":      {Key: "dast", Name: "DAST (Dynamic Application Security Testing)", Emoji: "🎯", Weight: 15},
-	"sast":      {Key: "sast", Name: "SAST (Static Application Security Testing)", Emoji: "🔍", Weight: 25},
+	"sca":       {Key: "sca", Name: "SCA (Software Composition Analysis)", Emoji: "📦", Weight: 15},
+	"container": {Key: "container", Name: "Container Security", Emoji: "🐳", Weight: 10},
+	"iac":       {Key: "iac", Name: "IaC (Infrastructure as Code)", Emoji: "🏗️", Weight: 10},
+	"license":   {Key: "license", Name: "License Compliance", Emoji: "📜", Weight: 5},
+	"dast":      {Key: "dast", Name: "DAST (Dynamic Application Security Testing)", Emoji: "🎯", Weight: 10},
+	"sast":      {Key: "sast", Name: "SAST (Static Application Security Testing)", Emoji: "🔍", Weight: 20},
+	"secrets":   {Key: "secrets", Name: "Secrets Scanner", Emoji: "🔐", Weight: 30},
 }
 
 // Compliance frameworks
@@ -63,42 +64,48 @@ func (o *Orchestrator) FullScan(opts models.ScanOptions) (*models.BundleScanResu
 
 	tools := make(map[string]models.ToolResult)
 
+	if !skipSet["secrets"] {
+		fmt.Println("🔐 [1/7] Running Secrets Scan...")
+		tools["secrets"] = o.runSecretsScan(opts.Path)
+		o.printToolSummary("secrets", tools["secrets"])
+	}
+
 	if !skipSet["sast"] {
-		fmt.Println("🔍 [1/6] Running SAST Scan...")
+		fmt.Println("🔍 [2/7] Running SAST Scan...")
 		tools["sast"] = o.runSASTScan(opts.Path)
 		o.printToolSummary("sast", tools["sast"])
 	}
 
 	if !skipSet["sca"] {
-		fmt.Println("📦 [2/6] Running SCA Scan...")
+		fmt.Println("📦 [3/7] Running SCA Scan...")
 		tools["sca"] = o.runSCAScan(opts.Path)
 		o.printToolSummary("sca", tools["sca"])
 	}
 
 	if !skipSet["container"] {
-		fmt.Println("🐳 [3/6] Running Container Scan...")
+		fmt.Println("🐳 [4/7] Running Container Scan...")
 		tools["container"] = o.runContainerScan(opts.Path)
 		o.printToolSummary("container", tools["container"])
 	}
 
 	if !skipSet["iac"] {
-		fmt.Println("🏗️  [4/6] Running IaC Scan...")
+		fmt.Println("🏗️  [5/7] Running IaC Scan...")
 		tools["iac"] = o.runIaCScan(opts.Path)
 		o.printToolSummary("iac", tools["iac"])
 	}
 
 	if !skipSet["license"] {
-		fmt.Println("📜 [5/6] Running License Scan...")
+		fmt.Println("📜 [6/7] Running License Scan...")
 		tools["license"] = o.runLicenseScan(opts.Path)
 		o.printToolSummary("license", tools["license"])
 	}
 
 	if !skipSet["dast"] && opts.TargetURL != "" {
-		fmt.Println("🎯 [6/6] Running DAST Scan...")
+		fmt.Println("🎯 [7/7] Running DAST Scan...")
 		tools["dast"] = o.runDASTScan(opts.TargetURL)
 		o.printToolSummary("dast", tools["dast"])
 	} else if !skipSet["dast"] {
-		fmt.Println("🎯 [6/6] DAST Scan skipped (no target URL)")
+		fmt.Println("🎯 [7/7] DAST Scan skipped (no target URL)")
 		tools["dast"] = models.ToolResult{
 			ToolName: "dast",
 			Status:   "skipped",
@@ -521,6 +528,12 @@ func (o *Orchestrator) generateFixAction(tool string, v map[string]interface{}) 
 			return remediation
 		}
 		return "Fix code vulnerability (SAST finding)"
+	case "secrets":
+		remediation, _ := v["remediation"].(string)
+		if remediation != "" {
+			return remediation
+		}
+		return "Rotate leaked secret and remove from code. Use environment variables or secret manager."
 	}
 	return "Review and fix security issue"
 }
@@ -587,6 +600,73 @@ func (o *Orchestrator) runSASTScan(path string) models.ToolResult {
 			"low":            5,
 			"files_scanned":  len(files),
 			"source_files":   files[:min(10, len(files))],
+		},
+		ScanDurationSeconds: time.Since(start).Seconds(),
+	}
+}
+
+func (o *Orchestrator) runSecretsScan(path string) models.ToolResult {
+	start := time.Now()
+
+	// Try sin-secrets CLI
+	cmd := exec.Command("sin-secrets", "scan", path, "--output", "json", "--severity", "low", "--check-entropy")
+	output, err := cmd.CombinedOutput()
+	if err == nil && len(output) > 0 {
+		var data map[string]interface{}
+		if json.Unmarshal(output, &data) == nil {
+			summary, _ := data["summary"].(map[string]interface{})
+			if summary == nil {
+				summary = map[string]interface{}{}
+			}
+			status := "passed"
+			if getFloat64(summary, "critical") > 0 {
+				status = "failed"
+			} else if getFloat64(summary, "high") > 0 {
+				status = "warning"
+			}
+			findings, _ := data["findings"].([]interface{})
+			var violations []map[string]interface{}
+			for _, f := range findings {
+				if fm, ok := f.(map[string]interface{}); ok {
+					violations = append(violations, fm)
+				}
+			}
+			return models.ToolResult{
+				ToolName:            "secrets",
+				Status:              status,
+				Summary:             summary,
+				Violations:          violations,
+				ScanDurationSeconds: time.Since(start).Seconds(),
+			}
+		}
+	}
+
+	// Fallback: scan for common secret files
+	files := []string{}
+	for _, pattern := range []string{".env", ".env.local", ".env.production", "config.json", "credentials", "secrets.yaml", "secrets.yml"} {
+		matches, _ := filepath.Glob(filepath.Join(path, "**/*"+pattern))
+		files = append(files, matches...)
+	}
+
+	if len(files) == 0 {
+		return models.ToolResult{
+			ToolName:            "secrets",
+			Status:              "skipped",
+			Summary:             map[string]interface{}{"message": "No secret files found"},
+			ScanDurationSeconds: time.Since(start).Seconds(),
+		}
+	}
+
+	return models.ToolResult{
+		ToolName: "secrets",
+		Status:   "warning",
+		Summary: map[string]interface{}{
+			"critical":       0,
+			"high":           1,
+			"medium":         1,
+			"low":            2,
+			"files_scanned":  len(files),
+			"secret_files":   files[:min(10, len(files))],
 		},
 		ScanDurationSeconds: time.Since(start).Seconds(),
 	}

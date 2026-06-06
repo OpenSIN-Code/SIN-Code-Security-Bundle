@@ -60,7 +60,7 @@ Perfect for scanning AnythingLLM-based projects like OpenAfD-Chat!`,
 		Short: "Run SCA scan only",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-				skipTools = "sast,container,iac,license,dast"
+				skipTools = "sast,container,iac,license,dast,secrets"
 				return runScan(cmd, args)
 			},
 		}
@@ -70,7 +70,7 @@ Perfect for scanning AnythingLLM-based projects like OpenAfD-Chat!`,
 			Short: "Run Container scan only",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				skipTools = "sast,sca,iac,license,dast"
+				skipTools = "sast,sca,iac,license,dast,secrets"
 				return runScan(cmd, args)
 			},
 		}
@@ -80,7 +80,7 @@ Perfect for scanning AnythingLLM-based projects like OpenAfD-Chat!`,
 			Short: "Run IaC scan only",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				skipTools = "sast,sca,container,license,dast"
+				skipTools = "sast,sca,container,license,dast,secrets"
 				return runScan(cmd, args)
 			},
 		}
@@ -90,7 +90,7 @@ Perfect for scanning AnythingLLM-based projects like OpenAfD-Chat!`,
 			Short: "Run License scan only",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				skipTools = "sast,sca,container,iac,dast"
+				skipTools = "sast,sca,container,iac,dast,secrets"
 				return runScan(cmd, args)
 			},
 		}
@@ -100,9 +100,19 @@ Perfect for scanning AnythingLLM-based projects like OpenAfD-Chat!`,
 		Short: "Run DAST scan only",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			skipTools = "sca,container,iac,license,sast"
+			skipTools = "sca,container,iac,license,sast,secrets"
 			targetURL = args[0]
 			return runScan(cmd, []string{"."})
+		},
+	}
+
+	secretsCmd := &cobra.Command{
+		Use:   "secrets [path]",
+		Short: "Run Secrets scan only",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			skipTools = "sca,container,iac,license,sast,dast"
+			return runScan(cmd, args)
 		},
 	}
 
@@ -111,7 +121,7 @@ Perfect for scanning AnythingLLM-based projects like OpenAfD-Chat!`,
 		Short: "Run SAST scan only",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			skipTools = "sca,container,iac,license,dast"
+			skipTools = "sca,container,iac,license,dast,secrets"
 			return runScan(cmd, args)
 		},
 	}
@@ -146,7 +156,7 @@ Includes:
 		Run:   runListFrameworks,
 	}
 
-	rootCmd.AddCommand(scanCmd, scaCmd, containerCmd, iacCmd, licenseCmd, dastCmd, sastCmd, openafdCmd, listToolsCmd, listFrameworksCmd)
+	rootCmd.AddCommand(scanCmd, scaCmd, containerCmd, iacCmd, licenseCmd, dastCmd, sastCmd, secretsCmd, openafdCmd, listToolsCmd, listFrameworksCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
