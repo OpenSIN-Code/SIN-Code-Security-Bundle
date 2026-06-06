@@ -60,49 +60,59 @@ Perfect for scanning AnythingLLM-based projects like OpenAfD-Chat!`,
 		Short: "Run SCA scan only",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			skipTools = "container,iac,license,dast"
-			return runScan(cmd, args)
-		},
-	}
-
-	containerCmd := &cobra.Command{
-		Use:   "container [path]",
-		Short: "Run Container scan only",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			skipTools = "sca,iac,license,dast"
-			return runScan(cmd, args)
-		},
-	}
-
-	iacCmd := &cobra.Command{
-		Use:   "iac [path]",
-		Short: "Run IaC scan only",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			skipTools = "sca,container,license,dast"
-			return runScan(cmd, args)
-		},
-	}
-
-	licenseCmd := &cobra.Command{
-		Use:   "license [path]",
-		Short: "Run License scan only",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			skipTools = "sca,container,iac,dast"
-			return runScan(cmd, args)
-		},
-	}
+				skipTools = "sast,container,iac,license,dast"
+				return runScan(cmd, args)
+			},
+		}
+	
+		containerCmd := &cobra.Command{
+			Use:   "container [path]",
+			Short: "Run Container scan only",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				skipTools = "sast,sca,iac,license,dast"
+				return runScan(cmd, args)
+			},
+		}
+	
+		iacCmd := &cobra.Command{
+			Use:   "iac [path]",
+			Short: "Run IaC scan only",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				skipTools = "sast,sca,container,license,dast"
+				return runScan(cmd, args)
+			},
+		}
+	
+		licenseCmd := &cobra.Command{
+			Use:   "license [path]",
+			Short: "Run License scan only",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				skipTools = "sast,sca,container,iac,dast"
+				return runScan(cmd, args)
+			},
+		}
 
 	dastCmd := &cobra.Command{
 		Use:   "dast [url]",
 		Short: "Run DAST scan only",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			skipTools = "sca,container,iac,license"
+			skipTools = "sca,container,iac,license,sast"
 			targetURL = args[0]
 			return runScan(cmd, []string{"."})
+		},
+	}
+
+	sastCmd := &cobra.Command{
+		Use:   "sast [path]",
+		Short: "Run SAST scan only",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			skipTools = "sca,container,iac,license,dast"
+			return runScan(cmd, args)
 		},
 	}
 
@@ -136,7 +146,7 @@ Includes:
 		Run:   runListFrameworks,
 	}
 
-	rootCmd.AddCommand(scanCmd, scaCmd, containerCmd, iacCmd, licenseCmd, dastCmd, openafdCmd, listToolsCmd, listFrameworksCmd)
+	rootCmd.AddCommand(scanCmd, scaCmd, containerCmd, iacCmd, licenseCmd, dastCmd, sastCmd, openafdCmd, listToolsCmd, listFrameworksCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

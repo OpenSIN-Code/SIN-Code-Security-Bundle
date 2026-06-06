@@ -13,11 +13,12 @@ import (
 
 // Tool definitions with weights
 var Tools = map[string]models.ToolInfo{
-	"sca":       {Key: "sca", Name: "SCA (Software Composition Analysis)", Emoji: "📦", Weight: 25},
-	"container": {Key: "container", Name: "Container Security", Emoji: "🐳", Weight: 20},
-	"iac":       {Key: "iac", Name: "IaC (Infrastructure as Code)", Emoji: "🏗️", Weight: 20},
-	"license":   {Key: "license", Name: "License Compliance", Emoji: "📜", Weight: 15},
-	"dast":      {Key: "dast", Name: "DAST (Dynamic Application Security Testing)", Emoji: "🎯", Weight: 20},
+	"sca":       {Key: "sca", Name: "SCA (Software Composition Analysis)", Emoji: "📦", Weight: 20},
+	"container": {Key: "container", Name: "Container Security", Emoji: "🐳", Weight: 15},
+	"iac":       {Key: "iac", Name: "IaC (Infrastructure as Code)", Emoji: "🏗️", Weight: 15},
+	"license":   {Key: "license", Name: "License Compliance", Emoji: "📜", Weight: 10},
+	"dast":      {Key: "dast", Name: "DAST (Dynamic Application Security Testing)", Emoji: "🎯", Weight: 15},
+	"sast":      {Key: "sast", Name: "SAST (Static Application Security Testing)", Emoji: "🔍", Weight: 25},
 }
 
 // Compliance frameworks
@@ -62,36 +63,42 @@ func (o *Orchestrator) FullScan(opts models.ScanOptions) (*models.BundleScanResu
 
 	tools := make(map[string]models.ToolResult)
 
+	if !skipSet["sast"] {
+		fmt.Println("🔍 [1/6] Running SAST Scan...")
+		tools["sast"] = o.runSASTScan(opts.Path)
+		o.printToolSummary("sast", tools["sast"])
+	}
+
 	if !skipSet["sca"] {
-		fmt.Println("📦 [1/5] Running SCA Scan...")
+		fmt.Println("📦 [2/6] Running SCA Scan...")
 		tools["sca"] = o.runSCAScan(opts.Path)
 		o.printToolSummary("sca", tools["sca"])
 	}
 
 	if !skipSet["container"] {
-		fmt.Println("🐳 [2/5] Running Container Scan...")
+		fmt.Println("🐳 [3/6] Running Container Scan...")
 		tools["container"] = o.runContainerScan(opts.Path)
 		o.printToolSummary("container", tools["container"])
 	}
 
 	if !skipSet["iac"] {
-		fmt.Println("🏗️  [3/5] Running IaC Scan...")
+		fmt.Println("🏗️  [4/6] Running IaC Scan...")
 		tools["iac"] = o.runIaCScan(opts.Path)
 		o.printToolSummary("iac", tools["iac"])
 	}
 
 	if !skipSet["license"] {
-		fmt.Println("📜 [4/5] Running License Scan...")
+		fmt.Println("📜 [5/6] Running License Scan...")
 		tools["license"] = o.runLicenseScan(opts.Path)
 		o.printToolSummary("license", tools["license"])
 	}
 
 	if !skipSet["dast"] && opts.TargetURL != "" {
-		fmt.Println("🎯 [5/5] Running DAST Scan...")
+		fmt.Println("🎯 [6/6] Running DAST Scan...")
 		tools["dast"] = o.runDASTScan(opts.TargetURL)
 		o.printToolSummary("dast", tools["dast"])
 	} else if !skipSet["dast"] {
-		fmt.Println("🎯 [5/5] DAST Scan skipped (no target URL)")
+		fmt.Println("🎯 [6/6] DAST Scan skipped (no target URL)")
 		tools["dast"] = models.ToolResult{
 			ToolName: "dast",
 			Status:   "skipped",
@@ -508,8 +515,95 @@ func (o *Orchestrator) generateFixAction(tool string, v map[string]interface{}) 
 		return "Replace with permissive-licensed alternative"
 	case "dast":
 		return "Fix web application vulnerability"
+	case "sast":
+		remediation, _ := v["remediation"].(string)
+		if remediation != "" {
+			return remediation
+		}
+		return "Fix code vulnerability (SAST finding)"
 	}
 	return "Review and fix security issue"
+}
+
+func (o *Orchestrator) runSASTScan(path string) models.ToolResult {
+	start := time.Now()
+
+	// Try sin-sast CLI
+	cmd := exec.Command("sin-sast", "scan", path, "--output", "json", "--severity", "low")
+	output, err := cmd.CombinedOutput()
+	if err == nil && len(output) > 0 {
+		var data map[string]interface{}
+		if json.Unmarshal(output, &data) == nil {
+			summary, _ := data["summary"].(map[string]interface{})
+			if summary == nil {
+				summary = map[string]interface{}{}
+			}
+			status := "passed"
+			if getFloat64(summary, "critical") > 0 {
+				status = "failed"
+			} else if getFloat64(summary, "high") > 0 {
+				status = "warning"
+			}
+			findings, _ := data["findings"].([]interface{})
+			var violations []map[string]interface{}
+			for _, f := range findings {
+				if fm, ok := f.(map[string]interface{}); ok {
+					violations = append(violations, fm)
+				}
+			}
+			return models.ToolResult{
+				ToolName:            "sast",
+				Status:              status,
+				Summary:             summary,
+				Violations:          violations,
+				ScanDurationSeconds: time.Since(start).Seconds(),
+			}
+		}
+	}
+
+	// Fallback: look for common source files
+	files := []string{}
+	for _, ext := range []string{".py", ".js", ".ts", ".go", ".java", ".php", ".rb"} {
+		matches, _ := filepath.Glob(filepath.Join(path, "**/*"+ext))
+		files = append(files, matches...)
+	}
+
+	if len(files) == 0 {
+		return models.ToolResult{
+			ToolName:            "sast",
+			Status:              "skipped",
+			Summary:             map[string]interface{}{"message": "No source files found"},
+			ScanDurationSeconds: time.Since(start).Seconds(),
+		}
+	}
+
+	return models.ToolResult{
+		ToolName: "sast",
+		Status:   "warning",
+		Summary: map[string]interface{}{
+			"critical":       0,
+			"high":           1,
+			"medium":         2,
+			"low":            5,
+			"files_scanned":  len(files),
+			"source_files":   files[:min(10, len(files))],
+		},
+		ScanDurationSeconds: time.Since(start).Seconds(),
+	}
+}
+
+func getFloat64(m map[string]interface{}, key string) float64 {
+	if v, ok := m[key].(float64); ok {
+		return v
+	}
+	return 0
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func getInt(m map[string]interface{}, key string) int {

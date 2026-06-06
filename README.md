@@ -1,10 +1,10 @@
 # SIN-Code-Security-Bundle
 
-SIN-Code-Security-Bundle: Unified security scanning across all SIN-Code security tools (SCA, Container, IaC, License, DAST).
+SIN-Code-Security-Bundle: Unified security scanning across all SIN-Code security tools (SAST, SCA, Container, IaC, License, DAST).
 
 ## Features
 
-- Full Security Scan: Run all 5 security tools in one command
+- Full Security Scan: Run all 6 security tools in one command
 - Compliance Dashboard: Map findings to CIS, NIST, SOC2, ISO27001, GDPR, OWASP, PCI, HIPAA
 - Remediation Engine: Cross-tool fix plans with dependency-aware ordering
 - Executive Reports: Business-friendly summaries for leadership
