@@ -1,93 +1,61 @@
 # SIN-Code-Security-Bundle
 
-SIN-Code-Security-Bundle: Unified security scanning across all SIN-Code security tools (SAST, SCA, Container, IaC, License, DAST).
+> Unified security scanning bundle across SCA, Container, IaC, License, and DAST domains.
 
-## Features
+## Status
 
-- Full Security Scan: Run all 6 security tools in one command
-- Compliance Dashboard: Map findings to CIS, NIST, SOC2, ISO27001, GDPR, OWASP, PCI, HIPAA
-- Remediation Engine: Cross-tool fix plans with dependency-aware ordering
-- Executive Reports: Business-friendly summaries for leadership
-- Technical Reports: Detailed reports for development teams
-- MCP Server: Integration with any MCP-compatible client (Cursor, Claude, etc.)
-- Go CLI: Fast, cross-platform command-line tool
+- **Version**: [v1.3.0](https://github.com/OpenSIN-Code/SIN-Code-Security-Bundle/releases/tag/v1.3.0)
+- **Maturity**: Beta
+- **Language**: Python (core) + Go (CLI)
+- **Tests**: 3 Python test files + 2 Go test files; run `make test`
+- **CI**: ✅ 1 workflow configured
 
 ## Installation
 
 ```bash
+git clone https://github.com/OpenSIN-Code/SIN-Code-Security-Bundle.git
+cd SIN-Code-Security-Bundle
+
+# Python package
 pip install -e .
+
+# Go CLI
+go build -o ~/.local/bin/sin-security ./cmd/sin-security
 ```
 
-## Quick Start
-
-### Python API
-
-```python
-from src.tools.bundle_scanner import BundleScanner
-
-scanner = BundleScanner()
-result = scanner.scan(project_path="./my-project", scan_type="full")
-
-# Get executive summary
-summary = scanner.generate_executive_summary(result)
-print(summary)
-
-# Get compliance report
-from src.tools.compliance_dashboard import ComplianceDashboardGenerator
-generator = ComplianceDashboardGenerator()
-dashboard = generator.generate(
-    project_path="./my-project",
-    requested_frameworks=["cis", "nist"]
-)
-report = generator.generate_compliance_report(dashboard, format="markdown")
-print(report)
-
-# Get remediation plan
-from src.tools.remediation_engine import RemediationEngine
-engine = RemediationEngine()
-plan = engine.generate_plan(result)
-plan_json = engine.generate_remediation_report(plan, format="json")
-print(plan_json)
-
-# Generate technical report
-from src.tools.report_generator import ReportGenerator
-report_gen = ReportGenerator()
-tech_report = report_gen.generate_technical_report(result, {
-    "sca": result.tools[0].summary if result.tools else {},
-    "container": {},
-    "iac": {},
-    "license": {},
-    "dast": {}
-})
-print(tech_report)
-```
-
-### Go CLI
+## Usage
 
 ```bash
-# Full scan
+# Go CLI
+sin-security --help
 sin-security scan ./my-project
-
-# Compliance report
 sin-security compliance ./my-project --frameworks cis,nist
-
-# Executive summary
 sin-security summary ./my-project
-
-# Remediation plan
 sin-security remediate ./my-project
+
+# Python API
+python - <<'PY'
+from src.tools.bundle_scanner import BundleScanner
+scanner = BundleScanner()
+result = scanner.full_scan("./my-project", compliance=["cis", "nist"])
+print(result.overall_score)
+PY
 ```
 
-## Testing
+## MCP Integration
 
-```bash
-make test
-```
+- **MCP Server**: `src/server.py`
+- **Tools**: 10 MCP tools exposed (full_scan, blast_radius, remediation_plan, compliance_report, executive_summary, technical_report, html_dashboard, list_tools, list_compliance_frameworks, and more)
+- **Register**: `sin mcp register sin-security src/server.py` or add to your MCP client config.
 
-## Documentation
+## Development
 
-See `docs/index.md` for full documentation.
+- **CoDocs**: 8 `.doc.md` companions
+- **AGENTS.md**: ❌ Missing — needs to be added to comply with the OpenSIN-Code standard
+- **Tests**: `make test` (runs both Python and Go tests)
+- **Lint**: `ruff check .` (Python) and `golangci-lint run` (Go)
+- **Compliance**: This repository aims to follow the OpenSIN-Code CoDocs/AGENTS.md standard. AGENTS.md and LICENSE files are currently missing; the README declares MIT in line with `pyproject.toml`.
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE). (LICENSE file is currently missing from the repo.)
