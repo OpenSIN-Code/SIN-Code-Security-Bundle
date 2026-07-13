@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package models
 
 // ToolResult represents result of a single security tool
